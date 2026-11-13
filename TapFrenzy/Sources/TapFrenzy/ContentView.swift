@@ -9,12 +9,17 @@ enum GamePhase {
 struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage("highScore") private var highScore = 0
+    @State private var tapsThisRound = 0
     @State private var score = 0
     @State private var timeRemaining = 10
     @State private var phase: GamePhase = .idle
     @State private var roundDeadline: Date?
     @State private var timer = Timer.publish(every: 1, on: .main, in: .common)
         .autoconnect()
+
+    private var buttonSize: CGFloat {
+        max(90, 200 - CGFloat(tapsThisRound) * 4)
+    }
 
     private var statusText: String {
         switch phase {
@@ -46,7 +51,7 @@ struct ContentView: View {
                             Text("TAP")
                                 .font(.title.bold())
                                 .foregroundStyle(.white)
-                                .frame(width: 200, height: 200)
+                                .frame(width: buttonSize, height: buttonSize)
                                 .background(.blue, in: Circle())
                                 .contentShape(Circle())
                         }
@@ -93,6 +98,7 @@ struct ContentView: View {
             return
         }
         score += 1
+        tapsThisRound += 1
     }
 
     private func updateTimer(_ now: Date) {
@@ -110,6 +116,7 @@ struct ContentView: View {
     }
 
     private func resetRound() {
+        tapsThisRound = 0
         score = 0
         timeRemaining = 10
         roundDeadline = nil
