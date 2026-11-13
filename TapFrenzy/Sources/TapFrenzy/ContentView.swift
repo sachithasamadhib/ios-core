@@ -9,6 +9,8 @@ enum GamePhase {
 struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage("highScore") private var highScore = 0
+    @State private var lastTapAt: Date?
+    @State private var multiplier = 1
     @State private var tapsThisRound = 0
     @State private var score = 0
     @State private var timeRemaining = 10
@@ -37,9 +39,16 @@ struct ContentView: View {
                         .font(.largeTitle.bold())
                     Text("Score")
                         .font(.headline)
-                    Text("\(score)")
-                        .font(.system(size: 80, weight: .heavy))
-                        .monospacedDigit()
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("\(score)")
+                            .font(.system(size: 80, weight: .heavy))
+                            .monospacedDigit()
+                        if phase == .playing && multiplier > 1 {
+                            Text("x\(multiplier)!")
+                                .font(.title2.bold())
+                                .foregroundStyle(.orange)
+                        }
+                    }
                     Text(statusText)
                         .font(.headline)
                         .monospacedDigit()
@@ -97,7 +106,14 @@ struct ContentView: View {
             finishRound()
             return
         }
-        score += 1
+        if let previous = lastTapAt,
+           now.timeIntervalSince(previous) <= 0.3 {
+            multiplier = min(multiplier + 1, 3)
+        } else {
+            multiplier = 1
+        }
+        lastTapAt = now
+        score += multiplier
         tapsThisRound += 1
     }
 
@@ -116,6 +132,8 @@ struct ContentView: View {
     }
 
     private func resetRound() {
+        lastTapAt = nil
+        multiplier = 1
         tapsThisRound = 0
         score = 0
         timeRemaining = 10
