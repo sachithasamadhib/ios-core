@@ -2,19 +2,33 @@ import SwiftUI
 import Combine
 import Foundation
 
+enum GamePhase {
+    case idle, playing, over
+}
+
 struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage("highScore") private var highScore = 0
+    @State private var lastTapAt: Date?
+    @State private var multiplier = 1
+    @State private var tapsThisRound = 0
     @State private var score = 0
     @State private var timeRemaining = 10
-    @State private var isPlaying = false
+    @State private var phase: GamePhase = .idle
     @State private var roundDeadline: Date?
     @State private var timer = Timer.publish(every: 1, on: .main, in: .common)
         .autoconnect()
 
+    private var buttonSize: CGFloat {
+        max(90, 200 - CGFloat(tapsThisRound) * 4)
+    }
+
     private var statusText: String {
-        if timeRemaining == 0 { return "Time's up!" }
-        if isPlaying { return "Time: \(timeRemaining)s" }
-        return "Tap to start · 10 seconds"
+        switch phase {
+        case .idle: return "Tap to start · 10 seconds"
+        case .playing: return "Time: \(timeRemaining)s"
+        case .over: return "Time's up!"
+        }
     }
 
     var body: some View {
@@ -25,25 +39,44 @@ struct ContentView: View {
                         .font(.largeTitle.bold())
                     Text("Score")
                         .font(.headline)
-                    Text("\(score)")
-                        .font(.system(size: 80, weight: .heavy))
-                        .monospacedDigit()
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("\(score)")
+                            .font(.system(size: 80, weight: .heavy))
+                            .monospacedDigit()
+                        if phase == .playing && multiplier > 1 {
+                            Text("x\(multiplier)!")
+                                .font(.title2.bold())
+                                .foregroundStyle(.orange)
+                        }
+                    }
                     Text(statusText)
                         .font(.headline)
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
 
-                    Button(action: handleTap) {
-                        Text("TAP")
-                            .font(.title.bold())
-                            .foregroundStyle(.white)
-                            .frame(width: 200, height: 200)
-                            .background(.blue, in: Circle())
-                            .contentShape(Circle())
+                    switch phase {
+                    case .idle, .playing:
+                        Button(action: handleTap) {
+                            Text("TAP")
+                                .font(.title.bold())
+                                .foregroundStyle(.white)
+                                .frame(width: buttonSize, height: buttonSize)
+                                .background(.blue, in: Circle())
+                                .contentShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .frame(width: 220, height: 220)
+                    case .over:
+                        VStack(spacing: 16) {
+                            Text("Final score: \(score)")
+                                .font(.title2.bold())
+                            Text("Best: \(highScore)")
+                                .font(.headline)
+                            Button("Play Again", action: resetRound)
+                                .buttonStyle(.borderedProminent)
+                        }
+                        .frame(width: 220, height: 220)
                     }
-                    .buttonStyle(.plain)
-                    .disabled(timeRemaining == 0)
-                    .frame(width: 220, height: 220)
                 }
                 .padding(24)
                 .frame(maxWidth: .infinity)
@@ -59,29 +92,52 @@ struct ContentView: View {
     }
 
     private func handleTap() {
-        guard timeRemaining > 0 else { return }
         let now = Date()
 
-        if !isPlaying {
+        if phase == .idle {
             roundDeadline = now.addingTimeInterval(10)
             timer = Timer.publish(every: 1, on: .main, in: .common)
                 .autoconnect()
-            isPlaying = true
+            phase = .playing
         }
 
-        guard let deadline = roundDeadline else { return }
+        guard phase == .playing, let deadline = roundDeadline else { return }
         guard now < deadline else {
-            timeRemaining = 0
-            isPlaying = false
+            finishRound()
             return
         }
-        score += 1
+        if let previous = lastTapAt,
+           now.timeIntervalSince(previous) <= 0.3 {
+            multiplier = min(multiplier + 1, 3)
+        } else {
+            multiplier = 1
+        }
+        lastTapAt = now
+        score += multiplier
+        tapsThisRound += 1
     }
 
     private func updateTimer(_ now: Date) {
-        guard isPlaying, let deadline = roundDeadline else { return }
+        guard phase == .playing, let deadline = roundDeadline else { return }
         let secondsLeft = deadline.timeIntervalSince(now)
         timeRemaining = min(10, max(0, Int(ceil(secondsLeft))))
-        if secondsLeft <= 0 { isPlaying = false }
+        if secondsLeft <= 0 { finishRound() }
+    }
+
+    private func finishRound() {
+        guard phase == .playing else { return }
+        timeRemaining = 0
+        phase = .over
+        highScore = max(highScore, score)
+    }
+
+    private func resetRound() {
+        lastTapAt = nil
+        multiplier = 1
+        tapsThisRound = 0
+        score = 0
+        timeRemaining = 10
+        roundDeadline = nil
+        phase = .idle
     }
 }
