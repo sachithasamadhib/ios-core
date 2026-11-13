@@ -8,6 +8,7 @@ enum GamePhase {
 
 struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage("highScore") private var highScore = 0
     @State private var score = 0
     @State private var timeRemaining = 10
     @State private var phase: GamePhase = .idle
@@ -55,6 +56,8 @@ struct ContentView: View {
                         VStack(spacing: 16) {
                             Text("Final score: \(score)")
                                 .font(.title2.bold())
+                            Text("Best: \(highScore)")
+                                .font(.headline)
                             Button("Play Again", action: resetRound)
                                 .buttonStyle(.borderedProminent)
                         }
@@ -103,6 +106,7 @@ struct ContentView: View {
         guard phase == .playing else { return }
         timeRemaining = 0
         phase = .over
+        highScore = max(highScore, score)
     }
 
     private func resetRound() {
